@@ -11,6 +11,7 @@ Place ``` gmsv_discordgateway_linux.dll ``` inside ``` garrysmod/lua/bin ``` and
 Currently, only 32-bit version is supported. All you need to do is to install curl, no other dependencies needed.
 
 - Simply install curl
+
 Ubuntu
 ```bash
 sudo apt-get curl
@@ -18,7 +19,7 @@ sudo apt-get curl
 
 Arch
 ```bash
-pacman -S curl
+sudo pacman -S curl
 ```
 
 - Compile using make in root directory
@@ -30,7 +31,7 @@ pacman -S curl
 | :-------- | :------- |
 | `DiscordGateway.Initialize(BOT_TOKEN)` | `string` |
 
-#### Send message to specified channel trough bot
+#### Send embed message to specified channel trough bot
 | Function | Args     |
 | :-------- | :------- |
 | `DiscordGateway.SendMessage(CHANNEL_ID, MESSAGE)` | `string`, `string` |
