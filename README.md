@@ -31,12 +31,12 @@ sudo pacman -S curl
 | :-------- | :------- |
 | `DiscordGateway.Initialize(BOT_TOKEN)` | `string` |
 
-#### Send embed message to specified channel trough bot
+#### Send message to specified channel trough bot
 | Function | Args     |
 | :-------- | :------- |
 | `DiscordGateway.SendMessage(CHANNEL_ID, MESSAGE)` | `string`, `string` |
 
-#### Send message to specified channel trough bot
+#### Send embed message to specified channel trough bot
 | Function | Args     |
 | :-------- | :------- |
 | `DiscordGateway.SendEmbed(CHANNEL_ID, TITLE, DESCRIPTION, COLOR)` | `string`, `string`,`string`,`HEX Color (0x00FF00)` |
