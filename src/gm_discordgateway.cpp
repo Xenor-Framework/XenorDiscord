@@ -186,19 +186,6 @@ int Initialize(lua_State* state) {
     return 1;
 }
 
-bool IsValidChannelId(const std::string& channelId) {
-    if (channelId.empty() || channelId.length() < 15 || channelId.length() > 20) {
-        return false;
-    }
-    
-    for (char c : channelId) {
-        if (!std::isdigit(c)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 int SendMessage(lua_State* state) {
     if (!LUA->IsType(1, Type::STRING) || !LUA->IsType(2, Type::STRING)) {
         printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid arguments - expected (string) CHANNEL_ID, (string) MESSAGE\n");
