@@ -201,7 +201,7 @@ bool IsValidChannelId(const std::string& channelId) {
 
 int SendMessage(lua_State* state) {
     if (!LUA->IsType(1, Type::STRING) || !LUA->IsType(2, Type::STRING)) {
-        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid arguments - expected (string, string)\n");
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid arguments - expected (string) CHANNEL_ID, (string) MESSAGE\n");
         LUA->PushBool(false);
         return 1;
     }
