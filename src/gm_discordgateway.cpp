@@ -10,8 +10,17 @@ using namespace GarrysMod::Lua;
 static std::string g_botToken;
 static CURL* g_curl = nullptr;
 
+
+// Util
+struct ResponseData {
+    std::string data;
+};
+
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    return size * nmemb;
+    ResponseData* response = static_cast<ResponseData*>(userp);
+    size_t totalSize = size * nmemb;
+    response->data.append(static_cast<char*>(contents), totalSize);
+    return totalSize;
 }
 
 void InitializeCurl() {
@@ -29,6 +38,7 @@ void CleanupCurl() {
     }
 }
 
+// JSON Handling
 std::string EscapeJson(const std::string& s) {
     std::ostringstream o;
     for (auto c = s.cbegin(); c != s.cend(); c++) {
@@ -51,6 +61,33 @@ std::string EscapeJson(const std::string& s) {
     return o.str();
 }
 
+std::string ExtractJsonField(const std::string& json, const std::string& field) {
+    std::string searchKey = "\"" + field + "\":";
+    size_t pos = json.find(searchKey);
+    if (pos == std::string::npos) return "";
+    
+    pos += searchKey.length();
+    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t')) pos++;
+    
+    if (pos >= json.length()) return "";
+    
+    if (json[pos] == '"') {
+        pos++;
+        size_t endPos = json.find('"', pos);
+        if (endPos != std::string::npos) {
+            return json.substr(pos, endPos - pos);
+        }
+    } else {
+        size_t endPos = pos;
+        while (endPos < json.length() && json[endPos] != ',' && json[endPos] != '}' && json[endPos] != ' ') {
+            endPos++;
+        }
+        return json.substr(pos, endPos - pos);
+    }
+    return "";
+}
+
+// Communication
 bool SendDiscordRequest(const std::string& endpoint, const std::string& jsonData) {
     if (!g_curl || g_botToken.empty()) {
         printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Not initialized or invalid token\n");
@@ -58,15 +95,20 @@ bool SendDiscordRequest(const std::string& endpoint, const std::string& jsonData
     }
 
     std::string url = "https://discord.com/api/v10" + endpoint;
+    ResponseData response;
     
     curl_easy_reset(g_curl);
     curl_easy_setopt(g_curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(g_curl, CURLOPT_POST, 1L);
     curl_easy_setopt(g_curl, CURLOPT_POSTFIELDS, jsonData.c_str());
     curl_easy_setopt(g_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(g_curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(g_curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(g_curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    curl_easy_setopt(g_curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(g_curl, CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(g_curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(g_curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(g_curl, CURLOPT_MAXREDIRS, 3L);
     
     struct curl_slist* headers = nullptr;
     std::string authHeader = "Authorization: Bot " + g_botToken;
@@ -87,10 +129,46 @@ bool SendDiscordRequest(const std::string& endpoint, const std::string& jsonData
     curl_easy_getinfo(g_curl, CURLINFO_RESPONSE_CODE, &http_code);
     
     if (http_code < 200 || http_code >= 300) {
-        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: HTTP %ld\n", http_code);
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: HTTP %ld", http_code);
+        
+        if (!response.data.empty()) {
+            std::string errorMsg = ExtractJsonField(response.data, "message");
+            std::string errorCode = ExtractJsonField(response.data, "code");
+            
+            if (!errorMsg.empty()) {
+                printf(" - %s", errorMsg.c_str());
+            }
+            if (!errorCode.empty()) {
+                printf(" (Code: %s)", errorCode.c_str());
+            }
+            
+            if (http_code == 401) {
+                printf(" - Check your bot token");
+            } else if (http_code == 403) {
+                printf(" - Bot lacks permissions or channel access");
+            } else if (http_code == 404) {
+                printf(" - Channel not found or bot not in server");
+            } else if (http_code == 429) {
+                printf(" - Rate limited");
+            }
+        }
+        printf("\n");
         return false;
     }
     
+    return true;
+}
+
+bool IsValidChannelId(const std::string& channelId) {
+    if (channelId.empty() || channelId.length() < 15 || channelId.length() > 20) {
+        return false;
+    }
+    
+    for (char c : channelId) {
+        if (!std::isdigit(c)) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -108,14 +186,40 @@ int Initialize(lua_State* state) {
     return 1;
 }
 
+bool IsValidChannelId(const std::string& channelId) {
+    if (channelId.empty() || channelId.length() < 15 || channelId.length() > 20) {
+        return false;
+    }
+    
+    for (char c : channelId) {
+        if (!std::isdigit(c)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 int SendMessage(lua_State* state) {
     if (!LUA->IsType(1, Type::STRING) || !LUA->IsType(2, Type::STRING)) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid arguments - expected (string, string)\n");
         LUA->PushBool(false);
         return 1;
     }
     
     std::string channelId = LUA->GetString(1);
     std::string message = LUA->GetString(2);
+    
+    if (!IsValidChannelId(channelId)) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid channel ID format\n");
+        LUA->PushBool(false);
+        return 1;
+    }
+    
+    if (message.empty() || message.length() > 2000) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Message too long (max 2000 characters)\n");
+        LUA->PushBool(false);
+        return 1;
+    }
     
     std::string jsonData = "{\"content\":\"" + EscapeJson(message) + "\"}";
     std::string endpoint = "/channels/" + channelId + "/messages";
@@ -128,6 +232,7 @@ int SendMessage(lua_State* state) {
 int SendEmbed(lua_State* state) {
     if (!LUA->IsType(1, Type::STRING) || !LUA->IsType(2, Type::STRING) || 
         !LUA->IsType(3, Type::STRING) || !LUA->IsType(4, Type::NUMBER)) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid arguments - expected (string, string, string, number)\n");
         LUA->PushBool(false);
         return 1;
     }
@@ -136,6 +241,30 @@ int SendEmbed(lua_State* state) {
     std::string title = LUA->GetString(2);
     std::string description = LUA->GetString(3);
     int color = (int)LUA->GetNumber(4);
+    
+    if (!IsValidChannelId(channelId)) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid channel ID format\n");
+        LUA->PushBool(false);
+        return 1;
+    }
+    
+    if (title.length() > 256) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Embed title too long (max 256 characters)\n");
+        LUA->PushBool(false);
+        return 1;
+    }
+    
+    if (description.length() > 4096) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Embed description too long (max 4096 characters)\n");
+        LUA->PushBool(false);
+        return 1;
+    }
+    
+    if (color < 0 || color > 16777215) {
+        printf("[ Xenor-Binaries ] [ DiscordGateway ] [ ERROR ]: Invalid color value (0-16777215)\n");
+        LUA->PushBool(false);
+        return 1;
+    }
     
     std::ostringstream json;
     json << "{\"embeds\":[{";
