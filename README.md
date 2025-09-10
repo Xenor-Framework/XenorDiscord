@@ -5,7 +5,7 @@ A clean & lightweight REST API communication from Garry's mod Lua to Discord tha
 - Either download a binary from release page
 - Compile it for your platform
 
-Place ``` gmsv_discordgateway_linux.dll ``` inside ``` garrysmod/lua/bin ``` and then in your Lua code ``` require("discordgateway") ```
+Place ``` gmsv_discordgateway_linux.dll ``` inside ``` <GarrysModDS Path>garrysmod/lua/bin ``` and then in your Lua code ``` require("discordgateway") ```
 
 ## Building (Linux 32-bit)
 Currently, only 32-bit version is supported. All you need to do is to install curl, no other dependencies needed.
