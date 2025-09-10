@@ -27,6 +27,7 @@ sudo pacman -S curl
 ## API Reference
 
 #### Authorization token (https://discord.com/developers/applications)
+- You need to create application->bot, invite it to your server and get bot token! Check https://discordpy.readthedocs.io/en/stable/discord.html
 | Function | Args     |
 | :-------- | :------- |
 | `DiscordGateway.Initialize(BOT_TOKEN)` | `string` |
